@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Message Sender</title>
+    <script>
+        async function sendMessage() {
+            const row = document.getElementById("row").value;
+            const message = document.getElementById("message").value;
+
+            if (!row || !message) {
+                alert("Please select a row and enter a message.");
+                return;
+            }
+
+            if (message.length > 13) {
+                alert("Message cannot be longer than 13 characters.");
+                return;
+            }
+
+            const response = await fetch("/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ row, message }),
+            });
+
+            const result = await response.json();
+            if (result.status === "success") {
+                alert("Message sent successfully!");
+            } else {
+                alert("Error: " + result.message);
+            }
+        }
+    </script>
+    <!-- Tailwind CSS CDN link -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-r from-teal-500 to-cyan-500 min-h-screen flex items-center justify-center text-white font-sans">
+
+    <div class="max-w-lg w-full bg-white p-8 rounded-2xl shadow-xl transform hover:scale-105 transition duration-500 ease-in-out">
+        <h1 class="text-4xl font-extrabold text-center mb-8 text-teal-600">MQTT Message Sender</h1>
+
+        <!-- Fixed Text Line (13 characters) -->
+        <div class="text-center text-lg font-semibold text-gray-700 mb-6">
+            Hello, World!
+        </div>
+
+        <div class="space-y-6">
+            <div class="flex flex-col">
+                <label for="row" class="text-lg font-semibold text-gray-700 mb-2">Select Row:</label>
+                <select id="row" class="p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-teal-100 text-teal-700 hover:bg-teal-200">
+                    <option value="row1">Row 1</option>
+                    <option value="row2">Row 2</option>
+                    <option value="row3">Row 3</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col">
+                <label for="message" class="text-lg font-semibold text-gray-700 mb-2">Enter Message (Max 13 characters):</label>
+                <input type="text" id="message" placeholder="Type your message here"
+                    maxlength="13"
+                    class="p-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-teal-100 text-teal-700 hover:bg-teal-200">
+            </div>
+
+            <div class="text-center">
+                <button onclick="sendMessage()"
+                    class="w-full p-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors duration-300">
+                    Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
