@@ -1,10 +1,11 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 import asyncio
 from paho.mqtt.client import Client as MQTTClient
 import datetime
 import os
 
 app = Flask(__name__)
+app.secret_key = "your_secret_key"  # Replace with a strong secret key
 
 # MQTT Configuration
 MQTT_BROKER = "broker.hivemq.com"
@@ -25,6 +26,10 @@ MESSAGE_DIR = "messages"
 if not os.path.exists(MESSAGE_DIR):
     os.makedirs(MESSAGE_DIR)
 
+# Valid Key for sending message
+valid_key = "srjec"  # Replace with the key you want
+
+
 # Save message with timestamp to a file
 def save_message_to_file(timestamp, topic, message):
     """
@@ -36,12 +41,14 @@ def save_message_to_file(timestamp, topic, message):
     with open(filename, "a") as file:
         file.write(f"{timestamp} - {topic} - {message}\n")
 
+
 # MQTT Callbacks
 def on_connect(client, userdata, flags, rc):
     print(f"Connected to MQTT Broker: {MQTT_BROKER}")
     for topic in MQTT_TOPICS.values():
         client.subscribe(topic)
     print("Subscribed to all topics.")
+
 
 def on_message(client, userdata, msg):
     message = msg.payload.decode()
@@ -51,18 +58,22 @@ def on_message(client, userdata, msg):
     print(f"Received: {message} from {topic} at {timestamp}")
     save_message_to_file(timestamp, topic, message)
 
+
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
+
 
 # Connect to MQTT in a background thread
 def start_mqtt():
     mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
     mqtt_client.loop_start()
 
+
 # Flask Routes
 @app.route("/")
 def index():
     return render_template("index.html", topics=list(MQTT_TOPICS.keys()))
+
 
 @app.route("/send", methods=["POST"])
 def send_message():
@@ -72,13 +83,19 @@ def send_message():
     data = request.json
     message = data.get("message")
     row = data.get("row")
+    key = data.get("key")  # Get the key from the request
+
+    if key != valid_key:
+        return jsonify({"status": "error", "message": "Invalid key."}), 400  # Key mismatch
 
     if row in MQTT_TOPICS and message:
         topic = MQTT_TOPICS[row]
         mqtt_client.publish(topic, message)
         print(f"Message sent to {topic}: {message}")
         return jsonify({"status": "success", "message": "Message sent successfully."})
+
     return jsonify({"status": "error", "message": "Invalid row or message missing."}), 400
+
 
 # Main Execution
 if __name__ == "__main__":
