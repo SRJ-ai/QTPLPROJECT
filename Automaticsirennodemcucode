@@ -1,0 +1,190 @@
+#include "ESP8266WiFi.h"
+#include "ESPAsyncWebServer.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+// Set relay GPIO
+const int relayGPIO = 5; // GPIO5 = D1 on NodeMCU
+#define RELAY_NO true // Relay Normally Open
+
+// Wi-Fi credentials
+const char* ssid = "TP-Link_304A";
+const char* password = "92039322";
+
+// Timezone offset for India (IST: UTC+5:30)
+const long utcOffsetInSeconds = 19800;
+
+// Scheduled times (in seconds from midnight)
+const int scheduleTimes[] = {9 * 3600, 12 * 3600 + 50 * 60, 13 * 3600 + 30 * 60, 16 * 3600 + 50 * 60, 17 * 3600, 19 * 3600};
+const int numSchedules = sizeof(scheduleTimes) / sizeof(scheduleTimes[0]);
+
+// Relay state
+bool relayState = false;
+unsigned long relayOnTime = 0; // Time when the relay was turned ON
+
+// NTP Client setup
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
+
+// Async Web Server
+AsyncWebServer server(80);
+
+// HTML for the webpage
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <title>QTPL Alarm</title>
+</head>
+<body class="bg-gradient-to-br from-teal-400 via-cyan-500 to-blue-500 min-h-screen flex items-center justify-center font-sans text-white">
+
+  <div class="bg-white text-gray-800 shadow-lg rounded-lg p-6 max-w-lg w-full">
+    <h1 class="text-3xl font-bold text-cyan-700 text-center mb-6">QTPL Alarm</h1>
+    
+    <div class="text-center mb-6">
+      <p class="text-lg font-medium">Relay Status: 
+        <span id="relayStatus" class="font-bold text-green-500">OFF</span>
+      </p>
+      <p class="text-sm text-gray-500">Current Time: 
+        <span id="currentTime" class="font-semibold text-cyan-600">Loading...</span>
+      </p>
+    </div>
+    
+    <div class="flex justify-center items-center mb-6">
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="relaySwitch" class="sr-only peer" onchange="toggleRelay()">
+        <div class="w-16 h-8 bg-gray-200 peer-focus:ring-4 peer-focus:ring-cyan-300 rounded-full peer-checked:bg-green-500"></div>
+        <div class="absolute w-7 h-7 bg-white rounded-full left-1 top-1 peer-checked:translate-x-8 transition-transform duration-300"></div>
+      </label>
+    </div>
+    
+    <div class="mt-6">
+      <h2 class="text-lg font-semibold text-cyan-600 mb-2 text-center">Scheduled Times</h2>
+      <ul class="text-sm font-medium text-gray-600 bg-gray-50 rounded-lg divide-y divide-gray-200 shadow-md">
+        <li class="py-3 px-4 text-center">09:00 AM</li>
+        <li class="py-3 px-4 text-center">12:50 PM</li>
+        <li class="py-3 px-4 text-center">01:30 PM</li>
+        <li class="py-3 px-4 text-center">04:50 PM</li>
+        <li class="py-3 px-4 text-center">05:00 PM</li>
+        <li class="py-3 px-4 text-center">07:00 PM</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    async function toggleRelay() {
+      const slider = document.getElementById('relaySwitch');
+      const statusText = document.getElementById('relayStatus');
+      const isChecked = slider.checked;
+
+      const response = await fetch(`/update?relay=1&state=${isChecked ? 1 : 0}`);
+      if (response.ok) {
+        statusText.textContent = isChecked ? 'ON' : 'OFF';
+        statusText.classList.toggle('text-green-500', isChecked);
+        statusText.classList.toggle('text-red-500', !isChecked);
+      } else {
+        slider.checked = !isChecked; // Revert if update fails
+      }
+    }
+
+    async function fetchData() {
+      const stateResponse = await fetch(`/status`);
+      const state = await stateResponse.text();
+      const isChecked = state === '1';
+      document.getElementById('relaySwitch').checked = isChecked;
+      document.getElementById('relayStatus').textContent = isChecked ? 'ON' : 'OFF';
+      document.getElementById('relayStatus').classList.toggle('text-green-500', isChecked);
+      document.getElementById('relayStatus').classList.toggle('text-red-500', !isChecked);
+
+      const timeResponse = await fetch(`/time`);
+      const currentTime = await timeResponse.text();
+      document.getElementById('currentTime').textContent = currentTime;
+    }
+
+    setInterval(fetchData, 1000); // Update data every second
+    window.onload = fetchData;
+  </script>
+</body>
+</html>
+)rawliteral";
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize relay pin
+  pinMode(relayGPIO, OUTPUT);
+  digitalWrite(relayGPIO, RELAY_NO ? HIGH : LOW);
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.println(WiFi.localIP());
+
+  // Initialize NTP client
+  timeClient.begin();
+
+  // Serve the webpage
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", index_html);
+  });
+
+  // Handle relay toggle
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("relay") && request->hasParam("state")) {
+      int state = request->getParam("state")->value().toInt();
+      relayState = (state == 1);
+      relayOnTime = relayState ? millis() : 0;
+      digitalWrite(relayGPIO, relayState ? LOW : HIGH);
+      request->send(200, "text/plain", "OK");
+    } else {
+      request->send(400, "text/plain", "Invalid Request");
+    }
+  });
+
+  // Return relay status
+  server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", String(relayState ? 1 : 0));
+  });
+
+  // Return current time in 24-hour format
+  server.on("/time", HTTP_GET, [](AsyncWebServerRequest *request) {
+    timeClient.update();
+    String formattedTime = timeClient.getFormattedTime();
+    request->send(200, "text/plain", formattedTime);
+  });
+
+  // Start server
+  server.begin();
+}
+
+void loop() {
+  // Update NTP time
+  timeClient.update();
+
+  // Get current time in seconds from midnight
+  int currentTime = timeClient.getHours() * 3600 + timeClient.getMinutes() * 60 + timeClient.getSeconds();
+
+  // Check scheduled times
+  for (int i = 0; i < numSchedules; i++) {
+    if (currentTime == scheduleTimes[i] && !relayState) {
+      relayState = true;
+      relayOnTime = millis();
+      digitalWrite(relayGPIO, LOW); // Turn relay ON
+      Serial.println("Relay turned ON by schedule.");
+    }
+  }
+
+  // Turn off relay after 17 seconds
+  if (relayState && (millis() - relayOnTime >= 17000)) {
+    relayState = false;
+    digitalWrite(relayGPIO, HIGH); // Turn relay OFF
+    Serial.println("Relay turned OFF after 17 seconds.");
+  }
+}
