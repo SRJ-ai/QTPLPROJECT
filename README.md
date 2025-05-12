@@ -59,7 +59,6 @@ Install dependencies:
 pip install -r requirements.txt
 
 Run:
-```bash
 python SERVER.py
 ```
 
