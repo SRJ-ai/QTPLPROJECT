@@ -22,19 +22,21 @@ An IoT-based **Real-Time Digital Notice Board** using **ESP8266**, **P10 LED Mat
 ---
 
 ## 📁 Project Structure
+
+```
 QTPL-NOTICEBOARD/
 │
-├── PHOTOS/ # Images for project documentation
-├── circu_itd_IAG/ # Circuit diagrams or layout files
-├── messages/ # Message logs
-├── templates/ # Flask HTML templates
-├── QTPLNOTlCEBOARDC<TDIAGRAM.pdf # Project diagram (deleted)
+├── PHOTOS/                          # Images for project documentation
+├── circu_itd_IAG/                   # Circuit diagrams or layout files
+├── messages/                        # Message logs
+├── templates/                       # Flask HTML templates
+├── QTPLNOTlCEBOARDC<TDIAGRAM.pdf    # Project diagram (deleted)
 ├── .gitattributes
-├── Automaticsirennodemcu_code # Arduino code for auto siren
-├── README.md # This file
-├── SERVER.py # Flask server for dashboard
-├── requirements.txt # Python dependencies
-
+├── Automaticsirennodemcu_code       # Arduino code for auto siren
+├── README.md                        # This file
+├── SERVER.py                        # Flask server for dashboard
+├── requirements.txt                 # Python dependencies
+```
 ---
 
 ## 🔧 Features
