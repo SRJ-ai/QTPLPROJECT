@@ -15,10 +15,9 @@ An IoT-based **Real-Time Digital Notice Board** using **ESP8266**, **P10 LED Mat
 - 🖥️ Dynamic text display on 3x3 P10 LED matrix
 - 🔁 Real-time updates via Flask dashboard (admin/user roles)
 - ☁️ MQTT protocol for fast, lightweight communication
-- 🧠 Voice-controlled LEDs via Google Assistant & Alexa using Synric Pro (free plan)
 - 🧾 Excel logging of messages with timestamps
 - ⚙️ Home Assistant & ESPHome integration-ready
-- 🔌 Supports up to 3 relays or LEDs over cloud
+
 
 ---
 
